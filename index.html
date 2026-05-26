@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Guild Member Panel</title>
+  <style>
+    :root { --bg:#0f1320; --card:#171b2b; --text:#e6ebff; --muted:#97a0c3; --accent:#6aa9ff; }
+    body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto; background:var(--bg); color:var(--text); }
+    header { padding:16px 20px; display:flex; gap:12px; align-items:center; border-bottom:1px solid #232844; }
+    input[type="search"] { flex:1; padding:10px 12px; border-radius:10px; border:1px solid #2a3053; background:#0d1020; color:var(--text); }
+    main { max-width:1100px; margin:24px auto; padding:0 16px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+    .card { background:var(--card); border:1px solid #232844; border-radius:14px; padding:14px; display:flex; gap:14px; }
+    .avatar { width:96px; height:96px; border-radius:12px; object-fit:cover; background:#0d1020; border:1px dashed #334; }
+    .meta { flex:1; }
+    .name { font-weight:700; font-size:18px; }
+    .row { margin-top:8px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .field { background:#11162a; border:1px solid #273055; padding:8px; border-radius:10px; font-size:14px; }
+    .label { color:var(--muted); font-size:12px; }
+    .val { font-weight:600; }
+    .topbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:12px 0; }
+    .btn { background:var(--accent); color:#051024; border:none; padding:8px 12px; border-radius:10px; font-weight:600; cursor:pointer; }
+    .file { display:none; }
+    .add { background:#21315a; border:1px dashed #38529b; padding:14px; border-radius:12px; }
+    .add input { width:100%; padding:10px; border-radius:10px; border:1px solid #2a3053; background:#0d1020; color:var(--text); }
+    .add label { font-size:12px; color:var(--muted); }
+    .add .grid { grid-template-columns:1fr 1fr; }
+    footer { max-width:1100px; margin:24px auto; padding:0 16px 24px; color:var(--muted); }
+    a { color:#8fc1ff; text-decoration:none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 style="margin:0;font-size:18px;">Guild Panel</h1>
+    <input id="q" type="search" placeholder="Search by name, KD, mana, sigil, SLD..." />
+    <a id="discordLink" class="btn" target="_blank" rel="noopener">Join Discord</a>
+  </header>
+
+  <main>
+    <section class="topbar">
+      <label for="avatar" class="btn">Upload Photo</label>
+      <input id="avatar" class="file" type="file" accept="image/*" />
+      <button id="addSample" class="btn" type="button">Add Sample</button>
+    </section>
+
+    <section class="add" aria-label="Add member">
+      <div class="grid">
+        <div>
+          <label>Name</label>
+          <input id="name" />
+        </div>
+        <div>
+          <label>Max Kingdom (KD)</label>
+          <input id="kd" type="number" />
+        </div>
+        <div>
+          <label>Mana Level</label>
+          <input id="mana" />
+        </div>
+        <div>
+          <label>Sigils</label>
+          <input id="sigil" type="number" />
+        </div>
+        <div style="grid-column:1 / -1;">
+          <label>SLD</label>
+          <input id="sld" />
+        </div>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px;">
+        <button id="save" class="btn" type="button">Create Card</button>
+        <small class="label">The last uploaded photo will be attached to the new card.</small>
+      </div>
+    </section>
+
+    <h2 style="margin:16px 0 8px;">Members</h2>
+    <div id="list" class="grid"></div>
+  </main>
+
+  <footer>
+    To embed live Discord chat, enable a widget (or use WidgetBot) and replace SERVER_ID/CHANNEL_ID below, then paste the iframe right before </body>.
+    <br><code>&lt;iframe src="[e.widgetbot.io](https://e.widgetbot.io/channels/SERVER_ID/CHANNEL_ID)" height="500" width="100%"&gt;&lt;/iframe&gt;</code>
+  </footer>
+
+  <script>
+    // In‑memory state
+    const state = { members: [], lastImageDataUrl: null };
+
+    // 1) Put your invite URL here (works immediately for the Join button)
+    const DISCORD_INVITE = "[discord.gg](https://discord.gg/yourInviteCode)"; // <-- replace
+    document.getElementById("discordLink").href = DISCORD_INVITE;
+
+    // Photo upload
+    document.getElementById("avatar").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const dataUrl = await new Promise(res => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.readAsDataURL(file);
+      });
+      state.lastImageDataUrl = dataUrl;
+      alert("Photo uploaded. It will be added to the next created card.");
+      e.target.value = "";
+    });
+
+    // Sample data
+    document.getElementById("addSample").onclick = () => {
+      state.members.push({
+        name: "Sir WarHorse",
+        kd: 1671,
+        mana: "lvl 3 (near 4)",
+        sigil: 180,
+        sld: "2.494B / 2.877B",
+        image: state.lastImageDataUrl
+      });
+      render();
+    };
+
+    // Create card
+    document.getElementById("save").onclick = () => {
+      const m = {
+        name: v("name") || "",
+        kd: v("kd") || "",
+        mana: v("mana") || "",
+        sigil: v("sigil") || "",
+        sld: v("sld") || "",
+        image: state.lastImageDataUrl
+      };
+      state.members.push(m);
+      ["name","kd","mana","sigil","sld"].forEach(id => byId(id).value = "");
+      state.lastImageDataUrl = null;
+      render();
+    };
+
+    // Search
+    document.getElementById("q").addEventListener("input", render);
+
+    function render() {
+      const q = document.getElementById("q").value.toLowerCase();
+      const list = document.getElementById("list");
+      list.innerHTML = "";
+      const filtered = state.members.filter(m => {
+        const hay = `${m.name} ${m.kd} ${m.mana} ${m.sigil} ${m.sld}`.toLowerCase();
+        return hay.includes(q);
+      });
+      for (const m of filtered) {
+        const card = el("div","card");
+        const img = el("img","avatar");
+        img.alt = m.name || "avatar";
+        img.src = m.image || "data:image/svg+xml;utf8," + encodeURIComponent(placeholderSvg(m.name));
+        const meta = el("div","meta");
+        const name = el("div","name"); name.textContent = m.name || "(no name)";
+        const grid = el("div","row");
+        grid.append(
+          field("Max Kingdom (KD)", m.kd || ""),
+          field("Mana", m.mana || ""),
+          field("Sigils", m.sigil || ""),
+          field("SLD", m.sld || "")
+        );
+        meta.append(name, grid);
+        card.append(img, meta);
+        list.append(card);
+      }
+    }
+
+    function field(label, val) {
+      const f = el("div","field");
+      const l = el("div","label"); l.textContent = label;
+      const v = el("div","val"); v.textContent = val;
+      f.append(l,v); return f;
+    }
+
+    function el(tag, cls) { const x = document.createElement(tag); if (cls) x.className = cls; return x; }
+    function byId(id){ return document.getElementById(id); }
+    function v(id){ return byId(id).value.trim(); }
+
+    function placeholderSvg(name) {
+      const initials = (name||"").split(" ").map(w=>w[0]||"").join("").slice(0,2).toUpperCase() || "?";
+      return `
+        <svg xmlns='[w3.org](http://www.w3.org/2000/svg)' width='96' height='96'>
+          <rect width='100%' height='100%' fill='#0d1020'/>
+          <text x='50%' y='54%' dominant-baseline='middle' text-anchor='middle'
+                font-family='Segoe UI, Roboto, Arial' font-weight='700' font-size='34'
+                fill='#6aa9ff'>${initials}</text>
+        </svg>`;
+    }
+
+    render();
+  </script>
+
+  <!-- Optional live chat embed:
+  <iframe src="[e.widgetbot.io](https://e.widgetbot.io/channels/SERVER_ID/CHANNEL_ID)" height="500" width="100%"></iframe>
+  -->
+</body>
+</html>
